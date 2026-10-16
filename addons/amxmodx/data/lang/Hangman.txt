@@ -1,0 +1,59 @@
+[en] -- RedSMURF
+HANGMAN_CHAT_TAG                                = ^4[HANGMAN]^1
+HANGMAN_CHAT_LIMIT                              = You've reached the maximum number of Hangmans ^4%d
+HANGMAN_CHAT_NO_HANGMAN                         = There are no Hangmans available
+HANGMAN_CHAT_CREATE_NEW                         = ^3%s ^1created
+HANGMAN_CHAT_REMOVE_CURRENT                     = ^3%s ^1removed
+HANGMAN_CHAT_REMOVE_ALL                         = All Hangmans removed
+HANGMAN_CHAT_SAVE                               = Hangman data saved in ^4%s
+HANGMAN_CHAT_SHOW_CURRENT                       = ^3%s ^1is %L
+HANGMAN_CHAT_SHOW_ALL_SHOWN                     = All Hangmans are now Shown
+HANGMAN_CHAT_SHOW_ALL_HIDDEN                    = All Hangmans are now Hidden
+HANGMAN_CHAT_STATUS_CURRENT                     = ^3%s ^1is %L
+HANGMAN_CHAT_STATUS_ALL_ENABLED                 = All Hangmans are now Enabled
+HANGMAN_CHAT_STATUS_ALL_DISABLED                = All Hangmans are now Disabled
+
+HANGMAN_CHAT_SHOWN                              = Shown
+HANGMAN_CHAT_HIDDEN                             = Hidden
+HANGMAN_CHAT_ENABLED                            = Enabled
+HANGMAN_CHAT_DISABLED                           = Disabled
+
+HANGMAN_NAV_NEXT                                = Next
+HANGMAN_NAV_BACK                                = Back
+HANGMAN_ON                                      = \y[ON]
+HANGMAN_OFF                                     = \r[OFF]
+HANGMAN_SHOWN                                   = \y[SHOWN]
+HANGMAN_HIDDEN                                  = \r[HIDDEN]
+HANGMAN_ENABLED                                 = \y[ENABLED]
+HANGMAN_DISABLED                                = \r[DISABLED]
+
+HANGMAN_MENU_TITLE                              = \dHangman - Version \y%s
+HANGMAN_MENU_TITLE_PAGE                         = \yPage:\r
+HANGMAN_ROOT_CREATE                             = Create Hangman
+HANGMAN_ROOT_EDIT                               = Edit Hangman
+HANGMAN_ROOT_REMOVE                             = Remove Hangman
+HANGMAN_ROOT_SAVE                               = Save Data
+HANGMAN_ROOT_SHOW                               = Visibility Settings
+HANGMAN_ROOT_STATUS                             = Status Settings
+HANGMAN_ROOT_NOCLIP                             = Status Noclip %L
+HANGMAN_ROOT_GODMODE                            = Status Godmode %L
+HANGMAN_ROOT_ROTATE                             = Adjust Rotation
+
+HANGMAN_EDIT_SHOW                               = Edit Visibility
+HANGMAN_EDIT_STATUS                             = Edit Status
+
+HANGMAN_REMOVE_CURRENT                          = Remove Hangman >> \y%s
+HANGMAN_REMOVE_ALL                              = Remove all Hangmans
+
+HANGMAN_SHOW_CURRENT                            = Show Hangman >> %s%s %L
+HANGMAN_SHOW_ALL_SHOW                           = Show all Hangmans
+HANGMAN_SHOW_ALL_HIDE                           = Hide all Hangmans
+
+HANGMAN_STATUS_CURRENT                          = Enable Hangman >> %s%s %L
+HANGMAN_STATUS_ALL_ENABLE                       = Enable all Hangmans
+HANGMAN_STATUS_ALL_DISABLE                      = Disable all Hangmans
+
+HANGMAN_ROTATE_UP                               = Turn Up
+HANGMAN_ROTATE_DOWN                             = Turn Down
+HANGMAN_ROTATE_GROUND                           = Set on ground >> %L
+HANGMAN_ROTATE_PLACE                            = Place Hangman
