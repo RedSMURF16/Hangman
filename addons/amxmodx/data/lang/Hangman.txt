@@ -2,6 +2,8 @@
 HANGMAN_CHAT_TAG                                = ^4[HANGMAN]^1
 HANGMAN_CHAT_LIMIT                              = You've reached the maximum number of Hangmans ^4%d
 HANGMAN_CHAT_NO_HANGMAN                         = There are no Hangmans available
+HANGMAN_CHAT_NOT_ALIVE                          = The target player is not alive
+HANGMAN_CHAT_NO_GALLOWS                         = There are no available gallows
 HANGMAN_CHAT_CREATE_NEW                         = ^3%s ^1created
 HANGMAN_CHAT_REMOVE_CURRENT                     = ^3%s ^1removed
 HANGMAN_CHAT_REMOVE_ALL                         = All Hangmans removed

@@ -73,7 +73,6 @@
 #define SOUND_ALERT                     "buttons/bell1.wav"
 
 new const PLUGIN_VERSION[]          = "1.0"
-new const Float:DELAY_ON_CONNECT    = 1.0
 new const Float:DELAY_ON_LOAD       = 2.0
 new const ERROR_FILE[]              = "Hangman_ERRORS.log"
 
@@ -126,6 +125,7 @@ enum _:MAIN_SETTINGS
     SETTING_DEFAULT_MODEL[MAX_RESOURCE_PATH_LENGTH],
     Array:SETTING_DEFAULT_SOUND,
     Array:SETTING_DEFAULT_MESSAGE,
+    Array:SETTING_DEFAULT_MESSAGE_FORCED,
     SETTING_DEFAULT_FLAGS,
     SETTING_DEFAULT_TEAM,
     SETTING_DEFAULT_HOLD_DURATION[2],
@@ -302,6 +302,7 @@ new Array:g_aHangman,
 new const g_iColorActive[] = { 0, 255, 0 }
 new const g_iColorInactive[] = { 255, 0, 0 }
 new Float:g_fHangOffset[] = { -59.75, -1.0, -94.0 }
+native Float:corpsegore_get_corpse_health()
 
 public plugin_init()
 {
@@ -333,6 +334,7 @@ public plugin_precache()
     g_aHangmanConfig = ArrayCreate(HANGMAN)
     g_eSettings[SETTING_DEFAULT_SOUND] = ArrayCreate(MAX_RESOURCE_PATH_LENGTH)
     g_eSettings[SETTING_DEFAULT_MESSAGE] = ArrayCreate(MAX_RESOURCE_PATH_LENGTH)
+    g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED] = ArrayCreate(MAX_RESOURCE_PATH_LENGTH)
 
     ReadFile()
 }
@@ -343,6 +345,20 @@ public plugin_end()
     ArrayDestroy(g_aHangmanConfig)
     ArrayDestroy(g_eSettings[SETTING_DEFAULT_SOUND])
     ArrayDestroy(g_eSettings[SETTING_DEFAULT_MESSAGE])
+    ArrayDestroy(g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED])
+}
+
+public plugin_natives()
+{
+    set_native_filter("native_filter")
+}
+
+public native_filter(const szName[], iNative, iTrap)
+{
+    if ( equal(szName, "corpsegore_get_corpse_health") )
+        return PLUGIN_HANDLED
+
+    return PLUGIN_CONTINUE
 }
 
 public cmdMenu(id, iLevel, iCmd)
@@ -350,8 +366,42 @@ public cmdMenu(id, iLevel, iCmd)
     if ( !cmd_access(id, iLevel, iCmd, 1) )
         return PLUGIN_HANDLED
 
-    hangmanSound(id, SOUND_MENU_NAV)
-    hangmanMenu(id, MENU_ROOT)
+    new szTarget[64]
+    read_argv(2, szTarget, charsmax(szTarget))
+    remove_quotes(szTarget)
+    if ( !szTarget[0] )
+    {
+        hangmanSound(id, SOUND_MENU_NAV)
+        hangmanMenu(id, MENU_ROOT)
+        return PLUGIN_HANDLED
+    }
+
+    new iTarget = cmd_target(id, szTarget, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF)
+    if ( !iTarget )
+        return PLUGIN_HANDLED   // cmd_target already printed the reason
+
+    if ( !is_user_alive(iTarget) )
+    {
+        client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NOT_ALIVE")
+        return PLUGIN_HANDLED
+    }
+
+    new eHangman[HANGMAN], Float:fCurrentTime = get_gametime()
+    for ( new iItem = 0; iItem < g_iHangman; iItem++ )
+    {
+        ArrayGetArray(g_aHangman, iItem, eHangman)
+
+        if ( eHangman[HANGMAN_FLAGS] & FLAG_USED )
+            continue
+
+        hangmanHang(eHangman, iTarget, true)
+        eHangman[HANGMAN_FLAGS] |= FLAG_USED
+        eHangman[HANGMAN_NEXT_ACTIVE] = fCurrentTime + random_float(eHangman[HANGMAN_COOLDOWN][0], eHangman[HANGMAN_COOLDOWN][1])
+        ArraySetArray(g_aHangman, iItem, eHangman)
+        return PLUGIN_HANDLED
+    }
+
+    client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NO_GALLOWS")
     return PLUGIN_HANDLED
 }
 
@@ -375,10 +425,6 @@ ReadFile()
 {
     if ( g_bFileWasRead )
     {
-        for ( new id = 1; id <= g_iMaxPlayers; id ++ )
-            if ( is_user_connected(id) )
-                UpdateData(id)
-
         ArrayClear(g_aHangmanConfig)
         g_iHangmanConfig = 0
     }
@@ -449,8 +495,6 @@ ReadFile()
                 if ( iPos != -1 )
                     szValue[iPos] = EOS
 
-                console_print(0, "Line %d: %s = %s", iLine, szKey, szValue)
-
                 trim(szKey)
                 trim(szValue)
 
@@ -468,6 +512,8 @@ ReadFile()
                             parseSetting(DTYPE_ARRAY_SOUND, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SOUND], charsmax(g_eSettings[SETTING_DEFAULT_SOUND]))
                         else if ( equali(szKey, "SETTING_DEFAULT_MESSAGE") )
                             parseSetting(DTYPE_ARRAY_STRING, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MESSAGE], charsmax(g_eSettings[SETTING_DEFAULT_MESSAGE]))
+                        else if ( equali(szKey, "SETTING_DEFAULT_MESSAGE_FORCED") )
+                            parseSetting(DTYPE_ARRAY_STRING, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED], charsmax(g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED]))
                         else if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
                             parseSetting(DTYPE_FLAGS, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_FLAGS], charsmax(g_eSettings[SETTING_DEFAULT_FLAGS]))
                         else if ( equali(szKey, "SETTING_DEFAULT_TEAM") )
@@ -542,11 +588,6 @@ ReadFile()
     fclose(iFile)
 }
 
-public client_authorized(id)
-{
-    set_task(DELAY_ON_CONNECT, "UpdateData", id)
-}
-
 public client_disconnected(id)
 {
     new eHangman[HANGMAN], iItem
@@ -560,11 +601,6 @@ public client_disconnected(id)
     DisableAction(id)
     g_ePlayerData[id][PDATA_HANGMAN_GHOST]  = 0
     g_ePlayerData[id][PDATA_HANGMAN_MENU]   = 0
-}
-
-public UpdateData(id)
-{
-    g_ePlayerData[id][PDATA_OFFSET] = g_eSettings[SETTING_OFFSET_BASE]
 }
 
 stock hangmanInit()
@@ -1863,7 +1899,7 @@ stock hangmanCorpseFit(iEnt, Float:fOrigin[3], Float:fHang[3])
     engfunc(EngFunc_SetOrigin, iEnt, fOrigin)
 }
 
-stock hangmanHang(eHangman[HANGMAN], id)
+stock hangmanHang(eHangman[HANGMAN], id, bool:bForced = false)
 {
     new iCorpse = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "info_target"))
     if ( !pev_valid(iCorpse) )
@@ -1891,6 +1927,8 @@ stock hangmanHang(eHangman[HANGMAN], id)
     set_pev(iCorpse, pev_takedamage, DAMAGE_YES)
     engfunc(EngFunc_SetModel, iCorpse, szPath)
     set_pev(iCorpse, pev_skin, pev(id, pev_skin))
+    if ( LibraryExists("corpsegore", LibType_Library) )
+        set_pev(iCorpse, pev_health, corpsegore_get_corpse_health())
 
     set_pev(iCorpse, pev_frame, SEQ_FRAME / (SEQ_FRAME_NUM - 1.0) * 255.0)
     set_pev(iCorpse, pev_sequence, SEQ)
@@ -1907,14 +1945,17 @@ stock hangmanHang(eHangman[HANGMAN], id)
     g_iSilentVictim = id
     eHangman[HANGMAN_CORPSE] = iCorpse
     set_pev(iCorpse, HANGMAN_OWNER, eHangman[HANGMAN_ID])
-    ExecuteHamB(Ham_Killed, id, id, GIB_NEVER)
     engfunc(EngFunc_SetOrigin, id, eHangman[HANGMAN_ORIGIN_VIEW])
     set_pev(id, pev_v_angle, eHangman[HANGMAN_ANGLES_VIEW])
     set_pev(id, pev_angles, eHangman[HANGMAN_ANGLES_VIEW])
     set_pev(id, pev_effects, pev(id, pev_effects) | EF_NODRAW)
 
+    ExecuteHamB(Ham_Killed, id, id, GIB_NEVER)
+    set_pev(id, pev_iuser1, OBS_ROAMING)
+    set_pev(id, pev_iuser2, 0)
+
     if ( g_eSettings[SETTING_WRITE_MESSAGE_ON_DEATH] )
-        hangmanMessage(id)
+        hangmanMessage(id, bForced)
 
     if ( g_eSettings[SETTING_PLAY_SOUND_ON_DEATH] )
         for ( new i = 1; i <= g_iMaxPlayers; i ++ )
@@ -1960,11 +2001,15 @@ stock hangmanSelect(eHangman[HANGMAN], iAction)
     }
 }
 
-stock hangmanMessage(id)
+stock hangmanMessage(id, bool:bForced = false)
 {
     new szName[MAX_NAME_LENGTH], szMessage[128]
     get_user_name(id, szName, charsmax(szName))
-    ArrayGetString(g_eSettings[SETTING_DEFAULT_MESSAGE], random(ArraySize(g_eSettings[SETTING_DEFAULT_MESSAGE])), szMessage, charsmax(szMessage))
+
+    if ( bForced )
+        ArrayGetString(g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED], random(ArraySize(g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED])), szMessage, charsmax(szMessage))
+    else
+        ArrayGetString(g_eSettings[SETTING_DEFAULT_MESSAGE], random(ArraySize(g_eSettings[SETTING_DEFAULT_MESSAGE])), szMessage, charsmax(szMessage))
 
     set_hudmessage(g_eSettings[SETTING_HUD_COLOR][0], g_eSettings[SETTING_HUD_COLOR][1], g_eSettings[SETTING_HUD_COLOR][2], g_eSettings[SETTING_HUD_X], g_iHudCurrentY,
     g_eSettings[SETTING_HUD_EFFECT], g_eSettings[SETTING_HUD_FXTIME], g_eSettings[SETTING_HUD_HOLDTIME], g_eSettings[SETTING_HUD_FADEIN], g_eSettings[SETTING_HUD_FADEOUT])
@@ -2101,12 +2146,13 @@ stock parseSetting(iType, szValue[], iValueLen, any:aOutput[], iOutputLength)
     }
 }
 
-public CorpseGore_CanGib(iEnt)
+public CorpseGore_CanGib(iEnt, iOffset[1])
 {
     new eHangman[HANGMAN], iItem
     if ( (iItem = hangmanGet(eHangman, pev(iEnt, HANGMAN_OWNER))) == -1 )
         return PLUGIN_CONTINUE
 
+    iOffset[0] = 32
     if ( !g_eSettings[SETTING_CORPSE_CAN_GIB] )
         return PLUGIN_HANDLED
 
