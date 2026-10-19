@@ -9,9 +9,9 @@
 *		None
 *
 *	Commands:
-*       say /hangman                     "Opens the Hangman menu."
-*       say_team /hangman                "Opens the Hangman menu."
-*       hangman_reload                   "Reloads the configuration file."
+*       say /hangman [name]             "Opens the Hangman menu or hangs the specified player."
+*       say_team /hangman [name]        "Opens the Hangman menu or hangs the specified player."
+*       hangman_reload                  "Reloads the configuration file."
 *
 *	Changelog:
 *       v1.0: Initial release.
@@ -1899,6 +1899,29 @@ stock hangmanCorpseFit(iEnt, Float:fOrigin[3], Float:fHang[3])
     engfunc(EngFunc_SetOrigin, iEnt, fOrigin)
 }
 
+stock hangmanStrip(id)
+{
+    new iWeapons[32], iNum, szName[32], iEnt
+    get_user_weapons(id, iWeapons, iNum)
+    for ( new i; i < iNum; i ++ )
+    {
+        if ( !get_weaponname(iWeapons[i], szName, charsmax(szName)) )
+            continue
+
+        iEnt = -1
+        while ( (iEnt = engfunc(EngFunc_FindEntityByString, iEnt, "classname", szName)) > 0 )
+        {
+            if ( pev(iEnt, pev_owner) != id )
+                continue
+
+            ExecuteHam(Ham_RemovePlayerItem, id, iEnt)
+            user_has_weapon(id, iWeapons[i], 0)
+            ExecuteHamB(Ham_Item_Kill, iEnt)
+            break
+        }
+    }
+}
+
 stock hangmanHang(eHangman[HANGMAN], id, bool:bForced = false)
 {
     new iCorpse = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "info_target"))
@@ -1950,6 +1973,7 @@ stock hangmanHang(eHangman[HANGMAN], id, bool:bForced = false)
     set_pev(id, pev_angles, eHangman[HANGMAN_ANGLES_VIEW])
     set_pev(id, pev_effects, pev(id, pev_effects) | EF_NODRAW)
 
+    hangmanStrip(id)
     ExecuteHamB(Ham_Killed, id, id, GIB_NEVER)
     set_pev(id, pev_iuser1, OBS_ROAMING)
     set_pev(id, pev_iuser2, 0)
