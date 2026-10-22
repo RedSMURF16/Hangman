@@ -1606,7 +1606,7 @@ public fwdUse(iEnt, iCaller, iActivator, iType, Float:fValue)
 public fwdObjectCaps(iEnt)
 {
     if ( !isHangman(iEnt) )
-        return HAM_IGNORED
+        return GetHamReturnStatus() == HAM_SUPERCEDE ? HAM_SUPERCEDE : HAM_IGNORED
 
     SetHamReturnInteger(FCAP_CONTINUOUS_USE | FCAP_ONOFF_USE)
     return HAM_SUPERCEDE
