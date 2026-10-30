@@ -9,8 +9,8 @@
 *		None
 *
 *	Commands:
-*       say /hangman [name1 name2 ...]          "Opens the Hangman menu or hangs the specified player."
-*       say_team /hangman [name1 name2 ...]     "Opens the Hangman menu or hangs the specified player."
+*       say /hangman [name1 name2 ... | all]    "Opens the Hangman menu or hangs the specified player(s)."
+*       say_team /hangman [name1 name2 ... | all] "Opens the Hangman menu or hangs the specified player(s)."
 *       hangman_reload                          "Reloads the configuration file."
 *
 *	Changelog:
@@ -381,32 +381,32 @@ public cmdMenu(id, iLevel, iCmd)
     new eHangman[HANGMAN], bool:bFoundGallows
     new Float:fCurrentTime = get_gametime()
     new iArgIndex = 2
-
+    new bool:bProcessed[33]
     while ( szTarget[0] )
     {
-        new iTarget = cmd_target(id, szTarget, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF)
-        if ( iTarget )
+        if ( equali(szTarget, "all") )
         {
-            if ( !is_user_alive(iTarget) )
+            for ( new id = 1; id <= g_iMaxPlayers; id ++ )
             {
-                client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NOT_ALIVE")
-            }
-            else
-            {
+                if ( !is_user_connected(id) || bProcessed[id] )
+                    continue
+
+                bProcessed[id] = true
+                if ( !is_user_alive(id) )
+                    continue
+
+                bFoundGallows = false
                 for ( new iItem = 0; iItem < g_iHangman; iItem ++ )
                 {
                     ArrayGetArray(g_aHangman, iItem, eHangman)
-
                     if ( eHangman[HANGMAN_FLAGS] & FLAG_USED )
                         continue
 
-                    hangmanHang(eHangman, iTarget, true)
+                    hangmanHang(eHangman, id, true)
                     eHangman[HANGMAN_FLAGS] |= FLAG_USED
                     eHangman[HANGMAN_NEXT_ACTIVE] = fCurrentTime + random_float(eHangman[HANGMAN_COOLDOWN][0], eHangman[HANGMAN_COOLDOWN][1])
                     ArraySetArray(g_aHangman, iItem, eHangman)
-
                     bFoundGallows = true
-                    iItem ++
                     break
                 }
 
@@ -414,6 +414,41 @@ public cmdMenu(id, iLevel, iCmd)
                 {
                     client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NO_GALLOWS")
                     break
+                }
+            }
+        }
+        else
+        {
+            new id = cmd_target(id, szTarget, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF)
+            if ( id && !bProcessed[id] )
+            {
+                bProcessed[id] = true
+                if ( !is_user_alive(id) )
+                {
+                    client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NOT_ALIVE")
+                }
+                else
+                {
+                    bFoundGallows = false
+                    for ( new iItem = 0; iItem < g_iHangman; iItem ++ )
+                    {
+                        ArrayGetArray(g_aHangman, iItem, eHangman)
+                        if ( eHangman[HANGMAN_FLAGS] & FLAG_USED )
+                            continue
+
+                        hangmanHang(eHangman, id, true)
+                        eHangman[HANGMAN_FLAGS] |= FLAG_USED
+                        eHangman[HANGMAN_NEXT_ACTIVE] = fCurrentTime + random_float(eHangman[HANGMAN_COOLDOWN][0], eHangman[HANGMAN_COOLDOWN][1])
+                        ArraySetArray(g_aHangman, iItem, eHangman)
+                        bFoundGallows = true
+                        break
+                    }
+
+                    if ( !bFoundGallows )
+                    {
+                        client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NO_GALLOWS")
+                        break
+                    }
                 }
             }
         }
