@@ -20,7 +20,6 @@
 
 #include <amxmodx>
 #include <amxmisc>
-#include <cstrike>
 #include <fakemeta>
 #include <hamsandwich>
 #include <xs>
@@ -1622,7 +1621,7 @@ public fwdUse(iEnt, iCaller, iActivator, iType, Float:fValue)
     new Float:fCurrentTime = get_gametime()
     if ( !(eHangman[HANGMAN_FLAGS] & FLAG_ACTIVE)
     || eHangman[HANGMAN_FLAGS] & FLAG_USED
-    || !(CsTeams:eHangman[HANGMAN_TEAM] & cs_get_user_team(iActivator))
+    || eHangman[HANGMAN_TEAM] != get_user_team(iActivator)
     || fCurrentTime < eHangman[HANGMAN_NEXT_ACTIVE] )
         return HAM_IGNORED
 
@@ -1973,7 +1972,7 @@ stock hangmanHang(eHangman[HANGMAN], id, bool:bForced = false)
 
     new szModel[32], szPath[96]
     new Float:fHang[3], Float:fBone[3], Float:fOrigin[3], Float:fAngles[3]
-    cs_get_user_model(id, szModel, charsmax(szModel))
+    get_user_info(id, "model", szModel, charsmax(szModel))
     formatex(szPath, charsmax(szPath), "models/player/%s/%s.mdl", szModel, szModel)
 
     xs_vec_copy(eHangman[HANGMAN_ANGLES], fAngles)
