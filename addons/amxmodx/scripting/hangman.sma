@@ -9,9 +9,9 @@
 *		None
 *
 *	Commands:
-*       say /hangman [name]             "Opens the Hangman menu or hangs the specified player."
-*       say_team /hangman [name]        "Opens the Hangman menu or hangs the specified player."
-*       hangman_reload                  "Reloads the configuration file."
+*       say /hangman [name1 name2 ...]          "Opens the Hangman menu or hangs the specified player."
+*       say_team /hangman [name1 name2 ...]     "Opens the Hangman menu or hangs the specified player."
+*       hangman_reload                          "Reloads the configuration file."
 *
 *	Changelog:
 *       v1.0: Initial release.
@@ -48,6 +48,13 @@
 #endif
 
 #define MAX_ENT                         32
+#define HANGMAN_CHECK                   10.0
+#define HANGMAN_OFFSET_BASE             120.0
+#define HANGMAN_OFFSET_MIN              65.0
+#define HANGMAN_OFFSET_MAX              900.0
+#define HANGMAN_OFFSET_STEP             10.0
+#define HANGMAN_GHOST_ALPHA             120
+#define HANGMAN_ROTATION_STEP           22.5
 #define ADMIN_ACCESS                    ADMIN_RCON
 #define PDATA_NEXT_ATTACK               83
 #define XO_CBASEPLAYER                  5
@@ -88,11 +95,13 @@ enum
     DTYPE_INT,
     DTYPE_FLOAT,
     DTYPE_FLAGS,
-    DTYPE_ARRAY_STRING,
-    DTYPE_ARRAY_SOUND,
     DTYPE_STRING_MODEL,
     DTYPE_STRING_SOUND,
-    DTYPE_STRING_MODEL_ID
+    DTYPE_ARRAY_MESSAGE,
+    DTYPE_ARRAY_MODEL,
+    DTYPE_ARRAY_SOUND,
+    DTYPE_STRING_MODEL_ID,
+    DTYPE_ARRAY_MODEL_ID
 }
 
 enum
@@ -147,13 +156,7 @@ enum _:MAIN_SETTINGS
     Float:SETTING_MAXS[3],
 
     bool:SETTING_HANGMAN_LOAD,
-    Float:SETTING_HANGMAN_CHECK,
     Float:SETTING_HANGMAN_TASK,
-    Float:SETTING_OFFSET_BASE,
-    Float:SETTING_OFFSET[2],
-    Float:SETTING_OFFSET_STEP,
-    SETTING_GHOST_ALPHA,
-    Float:SETTING_ROTATION_STEP
 }
 
 enum _:HANGMAN
@@ -164,7 +167,6 @@ enum _:HANGMAN
     HANGMAN_TEAM,
     HANGMAN_CORPSE,
     HANGMAN_NAME[MAX_VALUE_LENGTH],
-    HANGMAN_MODEL[MAX_RESOURCE_PATH_LENGTH],
     Float:HANGMAN_COOLDOWN[2],
 
     Float:HANGMAN_ORIGIN[3],
@@ -376,32 +378,52 @@ public cmdMenu(id, iLevel, iCmd)
         return PLUGIN_HANDLED
     }
 
-    new iTarget = cmd_target(id, szTarget, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF)
-    if ( !iTarget )
-        return PLUGIN_HANDLED   // cmd_target already printed the reason
+    new eHangman[HANGMAN], bool:bFoundGallows
+    new Float:fCurrentTime = get_gametime()
+    new iArgIndex = 2
 
-    if ( !is_user_alive(iTarget) )
+    while ( szTarget[0] )
     {
-        client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NOT_ALIVE")
-        return PLUGIN_HANDLED
+        new iTarget = cmd_target(id, szTarget, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF)
+        if ( iTarget )
+        {
+            if ( !is_user_alive(iTarget) )
+            {
+                client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NOT_ALIVE")
+            }
+            else
+            {
+                for ( new iItem = 0; iItem < g_iHangman; iItem ++ )
+                {
+                    ArrayGetArray(g_aHangman, iItem, eHangman)
+
+                    if ( eHangman[HANGMAN_FLAGS] & FLAG_USED )
+                        continue
+
+                    hangmanHang(eHangman, iTarget, true)
+                    eHangman[HANGMAN_FLAGS] |= FLAG_USED
+                    eHangman[HANGMAN_NEXT_ACTIVE] = fCurrentTime + random_float(eHangman[HANGMAN_COOLDOWN][0], eHangman[HANGMAN_COOLDOWN][1])
+                    ArraySetArray(g_aHangman, iItem, eHangman)
+
+                    bFoundGallows = true
+                    iItem ++
+                    break
+                }
+
+                if ( !bFoundGallows )
+                {
+                    client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NO_GALLOWS")
+                    break
+                }
+            }
+        }
+
+        iArgIndex ++
+        szTarget[0] = EOS
+        read_argv(iArgIndex, szTarget, charsmax(szTarget))
+        remove_quotes(szTarget)
     }
 
-    new eHangman[HANGMAN], Float:fCurrentTime = get_gametime()
-    for ( new iItem = 0; iItem < g_iHangman; iItem++ )
-    {
-        ArrayGetArray(g_aHangman, iItem, eHangman)
-
-        if ( eHangman[HANGMAN_FLAGS] & FLAG_USED )
-            continue
-
-        hangmanHang(eHangman, iTarget, true)
-        eHangman[HANGMAN_FLAGS] |= FLAG_USED
-        eHangman[HANGMAN_NEXT_ACTIVE] = fCurrentTime + random_float(eHangman[HANGMAN_COOLDOWN][0], eHangman[HANGMAN_COOLDOWN][1])
-        ArraySetArray(g_aHangman, iItem, eHangman)
-        return PLUGIN_HANDLED
-    }
-
-    client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NO_GALLOWS")
     return PLUGIN_HANDLED
 }
 
@@ -511,9 +533,9 @@ ReadFile()
                         else if ( equali(szKey, "SETTING_DEFAULT_SOUND") )
                             parseSetting(DTYPE_ARRAY_SOUND, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_SOUND], charsmax(g_eSettings[SETTING_DEFAULT_SOUND]))
                         else if ( equali(szKey, "SETTING_DEFAULT_MESSAGE") )
-                            parseSetting(DTYPE_ARRAY_STRING, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MESSAGE], charsmax(g_eSettings[SETTING_DEFAULT_MESSAGE]))
+                            parseSetting(DTYPE_ARRAY_MESSAGE, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MESSAGE], charsmax(g_eSettings[SETTING_DEFAULT_MESSAGE]))
                         else if ( equali(szKey, "SETTING_DEFAULT_MESSAGE_FORCED") )
-                            parseSetting(DTYPE_ARRAY_STRING, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED], charsmax(g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED]))
+                            parseSetting(DTYPE_ARRAY_MESSAGE, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED], charsmax(g_eSettings[SETTING_DEFAULT_MESSAGE_FORCED]))
                         else if ( equali(szKey, "SETTING_DEFAULT_FLAGS") )
                             parseSetting(DTYPE_FLAGS, szValue, charsmax(szValue), g_eSettings[SETTING_DEFAULT_FLAGS], charsmax(g_eSettings[SETTING_DEFAULT_FLAGS]))
                         else if ( equali(szKey, "SETTING_DEFAULT_TEAM") )
@@ -550,20 +572,8 @@ ReadFile()
                             parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_MAXS], charsmax(g_eSettings[SETTING_MAXS]))
                         else if ( equali(szKey, "SETTING_HANGMAN_LOAD") )
                             parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_HANGMAN_LOAD], charsmax(g_eSettings[SETTING_HANGMAN_LOAD]))
-                        else if ( equali(szKey, "SETTING_HANGMAN_CHECK") )
-                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_HANGMAN_CHECK], charsmax(g_eSettings[SETTING_HANGMAN_CHECK]))
                         else if ( equali(szKey, "SETTING_HANGMAN_TASK") )
                             parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_HANGMAN_TASK], charsmax(g_eSettings[SETTING_HANGMAN_TASK]))
-                        else if ( equali(szKey, "SETTING_OFFSET_BASE") )
-                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_BASE], charsmax(g_eSettings[SETTING_OFFSET_BASE]))
-                        else if ( equali(szKey, "SETTING_OFFSET") )
-                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET], charsmax(g_eSettings[SETTING_OFFSET]))
-                        else if ( equali(szKey, "SETTING_OFFSET_STEP") )
-                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_OFFSET_STEP], charsmax(g_eSettings[SETTING_OFFSET_STEP]))
-                        else if ( equali(szKey, "SETTING_GHOST_ALPHA") )
-                            parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_GHOST_ALPHA], charsmax(g_eSettings[SETTING_GHOST_ALPHA]))
-                        else if ( equali(szKey, "SETTING_ROTATION_STEP") )
-                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_ROTATION_STEP], charsmax(g_eSettings[SETTING_ROTATION_STEP]))
                     }
                     case SECTION_HANGMAN:
                     {
@@ -1212,7 +1222,7 @@ public menuHandlerRotate(id, menu, item)
         case ROTATE_UP:
         {
             pev(eHangman[HANGMAN_ID], pev_angles, eHangman[HANGMAN_ANGLES])
-            eHangman[HANGMAN_ANGLES][1] -= g_eSettings[SETTING_ROTATION_STEP]
+            eHangman[HANGMAN_ANGLES][1] -= HANGMAN_ROTATION_STEP
             if ( eHangman[HANGMAN_ANGLES][1] < -180.0 ) eHangman[HANGMAN_ANGLES][1] += 360.0
 
             set_pev(eHangman[HANGMAN_ID], pev_angles, eHangman[HANGMAN_ANGLES])
@@ -1224,7 +1234,7 @@ public menuHandlerRotate(id, menu, item)
         case ROTATE_DOWN:
         {
             pev(eHangman[HANGMAN_ID], pev_angles, eHangman[HANGMAN_ANGLES])
-            eHangman[HANGMAN_ANGLES][1] += g_eSettings[SETTING_ROTATION_STEP]
+            eHangman[HANGMAN_ANGLES][1] += HANGMAN_ROTATION_STEP
             if ( eHangman[HANGMAN_ANGLES][1] > 180.0 ) eHangman[HANGMAN_ANGLES][1] -= 360.0
 
             set_pev(eHangman[HANGMAN_ID], pev_angles, eHangman[HANGMAN_ANGLES])
@@ -1355,7 +1365,7 @@ stock hangmanCreate(id, iItem)
     {
         EnableAction(id)
         g_ePlayerData[id][PDATA_HANGMAN_GHOST] = eHangman[HANGMAN_ID]
-        g_ePlayerData[id][PDATA_OFFSET] = g_eSettings[SETTING_OFFSET_BASE]
+        g_ePlayerData[id][PDATA_OFFSET] = HANGMAN_OFFSET_BASE
 
         eHangman[HANGMAN_FLAGS] |= FLAG_GHOST
     }
@@ -1629,14 +1639,14 @@ public fwdPreThink(id)
             {
                 if ( iButton & IN_ATTACK )
                 {
-                    g_ePlayerData[id][PDATA_OFFSET]      += g_eSettings[SETTING_OFFSET_STEP]
-                    g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET][0], g_eSettings[SETTING_OFFSET][1])
+                    g_ePlayerData[id][PDATA_OFFSET]      += HANGMAN_OFFSET_STEP
+                    g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], HANGMAN_OFFSET_MIN, HANGMAN_OFFSET_MAX)
                     g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + 0.1
                 }
                 else if ( iButton & IN_ATTACK2 )
                 {
-                    g_ePlayerData[id][PDATA_OFFSET]      -= g_eSettings[SETTING_OFFSET_STEP]
-                    g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], g_eSettings[SETTING_OFFSET][0], g_eSettings[SETTING_OFFSET][1])
+                    g_ePlayerData[id][PDATA_OFFSET]      -= HANGMAN_OFFSET_STEP
+                    g_ePlayerData[id][PDATA_OFFSET]      = floatclamp(g_ePlayerData[id][PDATA_OFFSET], HANGMAN_OFFSET_MIN, HANGMAN_OFFSET_MAX)
                     g_ePlayerData[id][PDATA_NEXT_OFFSET] = fCurrentTime + 0.1
                 }
             }
@@ -1712,7 +1722,7 @@ stock hangmanCheck(id)
     global_get(glb_v_forward, fVec2)
 
     iBest = -1
-    fBestDist = g_eSettings[SETTING_HANGMAN_CHECK]
+    fBestDist = HANGMAN_CHECK
     for ( new i = 0; i < g_iHangman; i ++ )
     {
         ArrayGetArray(g_aHangman, i, eHangman)
@@ -2007,9 +2017,9 @@ stock hangmanSelect(eHangman[HANGMAN], iAction)
     }
     else if ( iAction == TARGET_GHOST )
     {
-        set_ent_rendering(eHangman[HANGMAN_ID], kRenderFxNone, 255, 255, 255, kRenderTransAlpha, g_eSettings[SETTING_GHOST_ALPHA])
+        set_ent_rendering(eHangman[HANGMAN_ID], kRenderFxNone, 255, 255, 255, kRenderTransAlpha, HANGMAN_GHOST_ALPHA)
         if ( pev_valid(eHangman[HANGMAN_CORPSE]) )
-            set_ent_rendering(eHangman[HANGMAN_CORPSE], kRenderFxNone, 255, 255, 255, kRenderTransAlpha, g_eSettings[SETTING_GHOST_ALPHA])
+            set_ent_rendering(eHangman[HANGMAN_CORPSE], kRenderFxNone, 255, 255, 255, kRenderTransAlpha, HANGMAN_GHOST_ALPHA)
     }
     else if ( iAction == TARGET_HIDE )
     {
@@ -2141,17 +2151,6 @@ stock parseSetting(iType, szValue[], iValueLen, any:aOutput[], iOutputLength)
         {
             aOutput[0] = read_flags(szValue)
         }
-        case DTYPE_ARRAY_STRING:
-        {
-            replace_all(szValue, iValueLen, "^"", " ")
-            replace_all(szValue, iValueLen, "^^n", "^n")
-            ArrayPushString(aOutput[0], szValue)
-        }
-        case DTYPE_ARRAY_SOUND:
-        {
-            ArrayPushString(aOutput[0], szValue)
-            if ( !g_bFileWasRead ) precache_sound(szValue)
-        }
         case DTYPE_STRING_MODEL:
         {
             copy(aOutput, iOutputLength, szValue)
@@ -2162,10 +2161,33 @@ stock parseSetting(iType, szValue[], iValueLen, any:aOutput[], iOutputLength)
             copy(aOutput, iOutputLength, szValue)
             if ( !g_bFileWasRead ) precache_sound(szValue)
         }
+        case DTYPE_ARRAY_MESSAGE:
+        {
+            replace_all(szValue, iValueLen, "^"", " ")
+            replace_all(szValue, iValueLen, "^^n", "^n")
+            ArrayPushString(aOutput[0], szValue)
+        }
+        case DTYPE_ARRAY_MODEL:
+        {
+            if ( !g_bFileWasRead )
+                precache_model(szValue)
+
+            ArrayPushString(aOutput[0], szValue)
+        }
+        case DTYPE_ARRAY_SOUND:
+        {
+            ArrayPushString(aOutput[0], szValue)
+            if ( !g_bFileWasRead ) precache_sound(szValue)
+        }
         case DTYPE_STRING_MODEL_ID:
         {
             if ( !g_bFileWasRead )
                 aOutput[0] = precache_model(szValue)
+        }
+        case DTYPE_ARRAY_MODEL_ID:
+        {
+            if ( !g_bFileWasRead )
+                ArrayPushCell(aOutput[0], precache_model(szValue))
         }
     }
 }
@@ -2256,3 +2278,8 @@ stock LogConfigError(const iLine, const szText[], any:...)
 
     log_to_file(ERROR_FILE, "^nLine %d: %s", iLine, szError)
 }
+
+
+
+
+
