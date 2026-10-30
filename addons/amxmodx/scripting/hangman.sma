@@ -21,9 +21,7 @@
 #include <amxmodx>
 #include <amxmisc>
 #include <cstrike>
-#include <engine>
 #include <fakemeta>
-#include <fun>
 #include <hamsandwich>
 #include <xs>
 
@@ -301,8 +299,6 @@ new Array:g_aHangman,
     g_iHangman, g_iHangmanConfig, g_iBarTime, Float:g_iHudCurrentY,
     g_iMaxPlayers, g_iSilentVictim
 
-new const g_iColorActive[] = { 0, 255, 0 }
-new const g_iColorInactive[] = { 255, 0, 0 }
 new Float:g_fHangOffset[] = { -59.75, -1.0, -94.0 }
 native Float:corpsegore_get_corpse_health()
 
@@ -725,10 +721,10 @@ public menuRoot(id, iMenu)
 
     menu_addblank2(iMenu)
 
-    formatex(szItem, charsmax(szItem), "%L", id, "HANGMAN_ROOT_NOCLIP", id, get_user_noclip(id) ? "HANGMAN_ON" : "HANGMAN_OFF")
+    formatex(szItem, charsmax(szItem), "%L", id, "HANGMAN_ROOT_NOCLIP", id, (pev(id, pev_movetype) == MOVETYPE_NOCLIP) ? "HANGMAN_ON" : "HANGMAN_OFF")
     menu_additem(iMenu, szItem)
 
-    formatex(szItem, charsmax(szItem), "%L", id, "HANGMAN_ROOT_GODMODE", id, get_user_godmode(id) ? "HANGMAN_ON" : "HANGMAN_OFF")
+    formatex(szItem, charsmax(szItem), "%L", id, "HANGMAN_ROOT_GODMODE", id, (pev(id, pev_takedamage) == DAMAGE_NO) ? "HANGMAN_ON" : "HANGMAN_OFF")
     menu_additem(iMenu, szItem)
 }
 
@@ -1388,7 +1384,7 @@ public hangmanTask()
 
 stock hangmanCreate(id, iItem)
 {
-    new iEnt = cs_create_entity("info_target")
+    new iEnt = engfunc(EngFunc_CreateNamedEntity, engfunc(EngFunc_AllocString, "info_target"))
     if ( !pev_valid(iEnt) )
         return
 
@@ -1589,7 +1585,7 @@ stock LoadDataHangman(iItem, iFlags, Float:fOrigin[3], Float:fAngles[3], iCount)
 
 public hangmanNoClip(id)
 {
-    set_user_noclip(id, !get_user_noclip(id))
+    set_pev(id, pev_movetype, pev(id, pev_movetype) == MOVETYPE_NOCLIP ? MOVETYPE_WALK : MOVETYPE_NOCLIP)
 
     hangmanSound(id, SOUND_MENU_NAV)
     hangmanMenu(id, MENU_ROOT)
@@ -1597,7 +1593,9 @@ public hangmanNoClip(id)
 
 public hangmanGodMode(id)
 {
-    set_user_godmode(id, !get_user_godmode(id))
+    new Float:flTakeDamage
+    pev(id, pev_takedamage, flTakeDamage)
+    set_pev(id, pev_takedamage, pev(id, pev_takedamage) == DAMAGE_NO ? DAMAGE_AIM : DAMAGE_NO)
 
     hangmanSound(id, SOUND_MENU_NAV)
     hangmanMenu(id, MENU_ROOT)
@@ -1775,7 +1773,7 @@ stock hangmanCheck(id)
         fNearest[0] = floatclamp(fVec3[0], fMins[0], fMaxs[0])
         fNearest[1] = floatclamp(fVec3[1], fMins[1], fMaxs[1])
         fNearest[2] = floatclamp(fVec3[2], fMins[2], fMaxs[2])
-        fDist = get_distance_f(fVec3, fNearest)
+        fDist = vector_distance(fVec3, fNearest)
         if ( fDist < fBestDist )
         {
             fBestDist = fDist
@@ -2040,33 +2038,72 @@ stock hangmanBar(id, iDuration)
 
 stock hangmanSelect(eHangman[HANGMAN], iAction)
 {
-    new iRenderColor[3]
     if ( iAction == TARGET_SELECT )
     {
-        if ( eHangman[HANGMAN_FLAGS] & FLAG_ACTIVE )    { iRenderColor[0] = g_iColorActive[0];    iRenderColor[1] = g_iColorActive[1];    iRenderColor[2] = g_iColorActive[2]; }
-        else                                            { iRenderColor[0] = g_iColorInactive[0];  iRenderColor[1] = g_iColorInactive[1];  iRenderColor[2] = g_iColorInactive[2]; }
+        if ( eHangman[HANGMAN_FLAGS] & FLAG_ACTIVE )
+        {
+            set_pev(eHangman[HANGMAN_ID], pev_rendercolor, Float:{0.0, 255.0, 0.0})
+            if ( pev_valid(eHangman[HANGMAN_CORPSE]) )
+                set_pev(eHangman[HANGMAN_CORPSE], pev_rendercolor, Float:{0.0, 255.0, 0.0})
+        }
+        else
+        {
+            set_pev(eHangman[HANGMAN_ID], pev_rendercolor, Float:{255.0, 0.0, 0.0})
+            if ( pev_valid(eHangman[HANGMAN_CORPSE]) )
+                set_pev(eHangman[HANGMAN_CORPSE], pev_rendercolor, Float:{255.0, 0.0, 0.0})
+        }
 
-        set_ent_rendering(eHangman[HANGMAN_ID], kRenderFxGlowShell, iRenderColor[0], iRenderColor[1], iRenderColor[2], kRenderTransAlpha, 16)
+        set_pev(eHangman[HANGMAN_ID], pev_renderfx, kRenderFxGlowShell)
+        set_pev(eHangman[HANGMAN_ID], pev_rendermode, kRenderTransAlpha)
+        set_pev(eHangman[HANGMAN_ID], pev_renderamt, 16.0)
         if ( pev_valid(eHangman[HANGMAN_CORPSE]) )
-            set_ent_rendering(eHangman[HANGMAN_CORPSE], kRenderFxGlowShell, iRenderColor[0], iRenderColor[1], iRenderColor[2], kRenderTransAlpha, 16)
+        {
+            set_pev(eHangman[HANGMAN_CORPSE], pev_renderfx, kRenderFxGlowShell)
+            set_pev(eHangman[HANGMAN_CORPSE], pev_rendermode, kRenderTransAlpha)
+            set_pev(eHangman[HANGMAN_CORPSE], pev_renderamt, 16.0)
+        }
     }
     else if ( iAction == TARGET_GHOST )
     {
-        set_ent_rendering(eHangman[HANGMAN_ID], kRenderFxNone, 255, 255, 255, kRenderTransAlpha, HANGMAN_GHOST_ALPHA)
+        set_pev(eHangman[HANGMAN_ID], pev_renderfx, kRenderFxNone)
+        set_pev(eHangman[HANGMAN_ID], pev_rendercolor, Float:{255.0, 255.0, 255.0})
+        set_pev(eHangman[HANGMAN_ID], pev_rendermode, kRenderTransAlpha)
+        set_pev(eHangman[HANGMAN_ID], pev_renderamt, float(HANGMAN_GHOST_ALPHA))
         if ( pev_valid(eHangman[HANGMAN_CORPSE]) )
-            set_ent_rendering(eHangman[HANGMAN_CORPSE], kRenderFxNone, 255, 255, 255, kRenderTransAlpha, HANGMAN_GHOST_ALPHA)
+        {
+            set_pev(eHangman[HANGMAN_CORPSE], pev_renderfx, kRenderFxNone)
+            set_pev(eHangman[HANGMAN_CORPSE], pev_rendercolor, Float:{255.0, 255.0, 255.0})
+            set_pev(eHangman[HANGMAN_CORPSE], pev_rendermode, kRenderTransAlpha)
+            set_pev(eHangman[HANGMAN_CORPSE], pev_renderamt, float(HANGMAN_GHOST_ALPHA))
+        }
     }
     else if ( iAction == TARGET_HIDE )
     {
-        set_ent_rendering(eHangman[HANGMAN_ID], kRenderFxNone, 255, 255, 255, kRenderTransAlpha, 0)
+        set_pev(eHangman[HANGMAN_ID], pev_renderfx, kRenderFxNone)
+        set_pev(eHangman[HANGMAN_ID], pev_rendercolor, Float:{255.0, 255.0, 255.0})
+        set_pev(eHangman[HANGMAN_ID], pev_rendermode, kRenderTransAlpha)
+        set_pev(eHangman[HANGMAN_ID], pev_renderamt, 0.0)
         if ( pev_valid(eHangman[HANGMAN_CORPSE]) )
-            set_ent_rendering(eHangman[HANGMAN_CORPSE], kRenderFxNone, 255, 255, 255, kRenderTransAlpha, 0)
+        {
+            set_pev(eHangman[HANGMAN_CORPSE], pev_renderfx, kRenderFxNone)
+            set_pev(eHangman[HANGMAN_CORPSE], pev_rendercolor, Float:{255.0, 255.0, 255.0})
+            set_pev(eHangman[HANGMAN_CORPSE], pev_rendermode, kRenderTransAlpha)
+            set_pev(eHangman[HANGMAN_CORPSE], pev_renderamt, 0.0)
+        }
     }
     else if ( iAction == TARGET_CLEAR )
     {
-        set_ent_rendering(eHangman[HANGMAN_ID], kRenderFxNone, 255, 255, 255, kRenderNormal, 255)
+        set_pev(eHangman[HANGMAN_ID], pev_renderfx, kRenderFxNone)
+        set_pev(eHangman[HANGMAN_ID], pev_rendercolor, Float:{255.0, 255.0, 255.0})
+        set_pev(eHangman[HANGMAN_ID], pev_rendermode, kRenderNormal)
+        set_pev(eHangman[HANGMAN_ID], pev_renderamt, 255.0)
         if ( pev_valid(eHangman[HANGMAN_CORPSE]) )
-            set_ent_rendering(eHangman[HANGMAN_CORPSE], kRenderFxNone, 255, 255, 255, kRenderNormal, 255)
+        {
+            set_pev(eHangman[HANGMAN_CORPSE], pev_renderfx, kRenderFxNone)
+            set_pev(eHangman[HANGMAN_CORPSE], pev_rendercolor, Float:{255.0, 255.0, 255.0})
+            set_pev(eHangman[HANGMAN_CORPSE], pev_rendermode, kRenderNormal)
+            set_pev(eHangman[HANGMAN_CORPSE], pev_renderamt, 255.0)
+        }
     }
 }
 
