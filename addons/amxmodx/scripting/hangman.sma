@@ -374,7 +374,6 @@ public cmdMenu(id, iLevel, iCmd)
     }
 
     new eHangman[HANGMAN], bool:bFoundGallows
-    new Float:fCurrentTime = get_gametime()
     new iArgIndex = 2
     new bool:bProcessed[33]
     while ( szTarget[0] )
@@ -398,8 +397,6 @@ public cmdMenu(id, iLevel, iCmd)
                         continue
 
                     hangmanHang(eHangman, id, true)
-                    eHangman[HANGMAN_FLAGS] |= FLAG_USED
-                    eHangman[HANGMAN_NEXT_ACTIVE] = fCurrentTime + random_float(eHangman[HANGMAN_COOLDOWN][0], eHangman[HANGMAN_COOLDOWN][1])
                     ArraySetArray(g_aHangman, iItem, eHangman)
                     bFoundGallows = true
                     break
@@ -432,8 +429,6 @@ public cmdMenu(id, iLevel, iCmd)
                             continue
 
                         hangmanHang(eHangman, id, true)
-                        eHangman[HANGMAN_FLAGS] |= FLAG_USED
-                        eHangman[HANGMAN_NEXT_ACTIVE] = fCurrentTime + random_float(eHangman[HANGMAN_COOLDOWN][0], eHangman[HANGMAN_COOLDOWN][1])
                         ArraySetArray(g_aHangman, iItem, eHangman)
                         bFoundGallows = true
                         break
@@ -1344,8 +1339,6 @@ public hangmanTask()
                     g_ePlayerData[id][PDATA_NEXT_HANG] = 0.0
 
                     hangmanHang(eHangman, id)
-                    eHangman[HANGMAN_FLAGS] |= FLAG_USED
-                    eHangman[HANGMAN_NEXT_ACTIVE] = fCurrentTime + random_float(eHangman[HANGMAN_COOLDOWN][0], eHangman[HANGMAN_COOLDOWN][1])
                     ArraySetArray(g_aHangman, iItem, eHangman)
                 }
             }
@@ -2009,6 +2002,8 @@ stock hangmanHang(eHangman[HANGMAN], id, bool:bForced = false)
 
     g_iSilentVictim = id
     eHangman[HANGMAN_CORPSE] = iCorpse
+    eHangman[HANGMAN_FLAGS] |= FLAG_USED
+    eHangman[HANGMAN_NEXT_ACTIVE] = get_gametime() + random_float(eHangman[HANGMAN_COOLDOWN][0], eHangman[HANGMAN_COOLDOWN][1])
     set_pev(iCorpse, HANGMAN_OWNER, eHangman[HANGMAN_ID])
     engfunc(EngFunc_SetOrigin, id, eHangman[HANGMAN_ORIGIN_VIEW])
     set_pev(id, pev_v_angle, eHangman[HANGMAN_ANGLES_VIEW])
