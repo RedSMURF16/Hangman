@@ -139,6 +139,7 @@ enum _:MAIN_SETTINGS
     bool:SETTING_CORPSE_CAN_GIB,
     bool:SETTING_PLAY_SOUND_ON_DEATH,
     bool:SETTING_WRITE_MESSAGE_ON_DEATH,
+    bool:SETTING_KILL_ALL_EXCLUDE_CALLER,
 
     Float:SETTING_HUD_X,
     Float:SETTING_HUD_Y,
@@ -380,13 +381,14 @@ public cmdMenu(id, iLevel, iCmd)
     {
         if ( equali(szTarget, "all") )
         {
-            for ( new id = 1; id <= g_iMaxPlayers; id ++ )
+            for ( new iTarget = 1; iTarget <= g_iMaxPlayers; iTarget ++ )
             {
-                if ( !is_user_connected(id) || bProcessed[id] )
+                if ( !is_user_connected(iTarget) || bProcessed[iTarget]
+                || (g_eSettings[SETTING_KILL_ALL_EXCLUDE_CALLER] && iTarget == id) )
                     continue
 
-                bProcessed[id] = true
-                if ( !is_user_alive(id) )
+                bProcessed[iTarget] = true
+                if ( !is_user_alive(iTarget) )
                     continue
 
                 bFoundGallows = false
@@ -396,7 +398,7 @@ public cmdMenu(id, iLevel, iCmd)
                     if ( eHangman[HANGMAN_FLAGS] & FLAG_USED )
                         continue
 
-                    hangmanHang(eHangman, id, true)
+                    hangmanHang(eHangman, iTarget, true)
                     ArraySetArray(g_aHangman, iItem, eHangman)
                     bFoundGallows = true
                     break
@@ -575,6 +577,8 @@ ReadFile()
                             parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_PLAY_SOUND_ON_DEATH], charsmax(g_eSettings[SETTING_PLAY_SOUND_ON_DEATH]))
                         else if ( equali(szKey, "SETTING_WRITE_MESSAGE_ON_DEATH") )
                             parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_WRITE_MESSAGE_ON_DEATH], charsmax(g_eSettings[SETTING_WRITE_MESSAGE_ON_DEATH]))
+                        else if ( equali(szKey, "SETTING_KILL_ALL_EXCLUDE_CALLER") )
+                            parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_KILL_ALL_EXCLUDE_CALLER], charsmax(g_eSettings[SETTING_KILL_ALL_EXCLUDE_CALLER]))
                         else if ( equali(szKey, "SETTING_HUD_X") )
                             parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_HUD_X], charsmax(g_eSettings[SETTING_HUD_X]))
                         else if ( equali(szKey, "SETTING_HUD_Y") )
