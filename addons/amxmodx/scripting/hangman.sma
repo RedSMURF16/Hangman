@@ -1614,7 +1614,7 @@ public fwdUse(iEnt, iCaller, iActivator, iType, Float:fValue)
     new Float:fCurrentTime = get_gametime()
     if ( !(eHangman[HANGMAN_FLAGS] & FLAG_ACTIVE)
     || eHangman[HANGMAN_FLAGS] & FLAG_USED
-    || eHangman[HANGMAN_TEAM] != get_user_team(iActivator)
+    || !(eHangman[HANGMAN_TEAM] & get_user_team(iActivator))
     || fCurrentTime < eHangman[HANGMAN_NEXT_ACTIVE] )
         return HAM_IGNORED
 
