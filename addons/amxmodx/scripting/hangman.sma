@@ -69,6 +69,8 @@
 #define VIEW_FORWARD_OFFSET             192.0
 #define VIEW_RIGHT_OFFSET               64.0
 #define VIEW_UP_OFFSET                  32.0
+#define HUD_Y_STEP                      0.025
+#define HUD_Y_MAX                       0.7
 #define CORPSE_HALF_WIDTH               15.0
 #define CORPSE_UP                       2.0
 #define CORPSE_DOWN                     72.0
@@ -296,7 +298,7 @@ new Array:g_aHangman,
     g_ePlayerData[MAX_PLAYERS + 1][PLAYER_DATA],
     bool:g_bFileWasRead, g_iActivePlayers,
     g_iFwdEmitSound, HamHook:g_iFwdUse, HamHook:g_iFwdObjectCaps, HamHook:g_iFwdPreThink,
-    g_iHangman, g_iHangmanConfig, g_iBarTime, Float:g_iHudCurrentY,
+    g_iHangman, g_iHangmanConfig, g_iBarTime, Float:g_iHudCurrentY, g_iHudObject_1, g_iHudObject_2, g_iHudObject_3, g_iHudSlot,
     g_iMaxPlayers, g_iSilentVictim
 
 new Float:g_fHangOffset[] = { -59.75, -1.0, -94.0 }
@@ -318,6 +320,9 @@ public plugin_init()
     g_iFwdPreThink = RegisterHam(Ham_Player_PreThink, "player", "fwdPreThink")
     RegisterHam(Ham_Killed, "player", "fwdKilled", 1)
     g_iBarTime = get_user_msgid("BarTime")
+    g_iHudObject_1 = CreateHudSyncObj()
+    g_iHudObject_2 = CreateHudSyncObj()
+    g_iHudObject_3 = CreateHudSyncObj()
     register_logevent("eventRoundStart", 2, "1=Round_Start")
     DisableForward()
     DisableHangman()
@@ -2107,7 +2112,7 @@ stock hangmanSelect(eHangman[HANGMAN], iAction)
 
 stock hangmanMessage(id, bool:bForced = false)
 {
-    new szName[MAX_NAME_LENGTH], szMessage[128]
+    new szName[MAX_NAME_LENGTH], szMessage[128], iHudObject
     get_user_name(id, szName, charsmax(szName))
 
     if ( bForced )
@@ -2115,12 +2120,24 @@ stock hangmanMessage(id, bool:bForced = false)
     else
         ArrayGetString(g_eSettings[SETTING_DEFAULT_MESSAGE], random(ArraySize(g_eSettings[SETTING_DEFAULT_MESSAGE])), szMessage, charsmax(szMessage))
 
+    switch ( g_iHudSlot )
+    {
+        case 0:  iHudObject = g_iHudObject_1
+        case 1:  iHudObject = g_iHudObject_2
+        default: iHudObject = g_iHudObject_3
+    }
+
     set_hudmessage(g_eSettings[SETTING_HUD_COLOR][0], g_eSettings[SETTING_HUD_COLOR][1], g_eSettings[SETTING_HUD_COLOR][2], g_eSettings[SETTING_HUD_X], g_iHudCurrentY,
     g_eSettings[SETTING_HUD_EFFECT], g_eSettings[SETTING_HUD_FXTIME], g_eSettings[SETTING_HUD_HOLDTIME], g_eSettings[SETTING_HUD_FADEIN], g_eSettings[SETTING_HUD_FADEOUT])
-    show_hudmessage(0, "%s%s", szName, szMessage)
-    g_iHudCurrentY += 0.025
-    if ( g_iHudCurrentY >= 0.7 )
+    ShowSyncHudMsg(0, iHudObject, "%s%s", szName, szMessage)
+
+    g_iHudSlot ++
+    g_iHudCurrentY += HUD_Y_STEP
+    if ( g_iHudCurrentY > HUD_Y_MAX )
+    {
         g_iHudCurrentY = g_eSettings[SETTING_HUD_Y]
+        g_iHudSlot = 0
+    }
 }
 
 stock hangmanSound(iEnt, iSound, bool:bPlayer = true)
