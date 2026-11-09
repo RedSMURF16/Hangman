@@ -14,6 +14,11 @@ HANGMAN_CHAT_SHOW_ALL_HIDDEN                    = All Hangmans are now Hidden
 HANGMAN_CHAT_STATUS_CURRENT                     = ^3%s ^1is %L
 HANGMAN_CHAT_STATUS_ALL_ENABLED                 = All Hangmans are now Enabled
 HANGMAN_CHAT_STATUS_ALL_DISABLED                = All Hangmans are now Disabled
+HANGMAN_CHAT_VOTE_DISABLED                      = Voting is disabled
+HANGMAN_CHAT_VOTE_COOLDOWN                      = Wait a little longer before starting another vote
+HANGMAN_CHAT_VOTE_FAILED                        = The vote to execute ^3%s ^1has failed
+HANGMAN_CHAT_VOTE_PASSED                        = The vote to execute ^3%s ^1has passed
+HANGMAN_CHAT_VOTE_NO_TARGETS                    = There are no alive players to vote for
 
 HANGMAN_CHAT_SHOWN                              = Shown
 HANGMAN_CHAT_HIDDEN                             = Hidden
@@ -40,6 +45,8 @@ HANGMAN_ROOT_STATUS                             = Status Settings
 HANGMAN_ROOT_NOCLIP                             = Status Noclip %L
 HANGMAN_ROOT_GODMODE                            = Status Godmode %L
 HANGMAN_ROOT_ROTATE                             = Adjust Rotation
+HANGMAN_ROOT_VOTE                               = Select a player to execute
+HANGMAN_ROOT_VOTE_CONFIRM                       = Execute \y%s\d?
 
 HANGMAN_EDIT_SHOW                               = Edit Visibility
 HANGMAN_EDIT_STATUS                             = Edit Status
@@ -59,3 +66,6 @@ HANGMAN_ROTATE_UP                               = Turn Up
 HANGMAN_ROTATE_DOWN                             = Turn Down
 HANGMAN_ROTATE_GROUND                           = Set on ground >> %L
 HANGMAN_ROTATE_PLACE                            = Place Hangman
+
+HANGMAN_VOTE_YES                                = \wYes
+HANGMAN_VOTE_NO                                 = \wNo

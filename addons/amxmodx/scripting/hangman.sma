@@ -53,11 +53,13 @@
 #define HANGMAN_GHOST_ALPHA             120
 #define HANGMAN_ROTATION_STEP           22.5
 #define ADMIN_ACCESS                    ADMIN_RCON
+#define ADMIN_ACCESS_VOTE               ADMIN_USER
 #define PDATA_NEXT_ATTACK               83
 #define XO_CBASEPLAYER                  5
 #define XO_CBASEPLAYERWEAPON            4
 #define CORPSEGORE_KEY                  981222
 #define HANGMAN_KEY                     658812
+#define HANGMAN_VOTE_KEY                658813
 #define HANGMAN_ARRAY_ITEM              pev_iuser1
 #define HANGMAN_OWNER                   pev_iuser2
 #define HANG_BONE                       6
@@ -142,6 +144,10 @@ enum _:MAIN_SETTINGS
     bool:SETTING_PLAY_SOUND_ON_DEATH,
     bool:SETTING_WRITE_MESSAGE_ON_DEATH,
     bool:SETTING_KILL_ALL_EXCLUDE_CALLER,
+    bool:SETTING_VOTE_ENABLED,
+    Float:SETTING_VOTE_COOLDOWN,
+    Float:SETTING_VOTE_DURATION,
+    Float:SETTING_VOTE_PERCENTAGE,
 
     Float:SETTING_HUD_X,
     Float:SETTING_HUD_Y,
@@ -211,7 +217,9 @@ enum
     MENU_REMOVE,
     MENU_SHOW,
     MENU_STATUS,
-    MENU_ROTATE
+    MENU_ROTATE,
+    MENU_VOTE,
+    MENU_VOTE_CONFIRM
 }
 
 enum
@@ -287,7 +295,9 @@ new g_szMenuHandler[][MAX_VALUE_LENGTH] =
     "menuHandlerRemove",
     "menuHandlerShow",
     "menuHandlerStatus",
-    "menuHandlerRotate"
+    "menuHandlerRotate",
+    "menuHandlerVote",
+    "menuHandlerVoteConfirm"
 }
 
 new g_szCN[] = "hangman"
@@ -299,6 +309,7 @@ new Array:g_aHangman,
     bool:g_bFileWasRead, g_iActivePlayers,
     g_iFwdEmitSound, HamHook:g_iFwdUse, HamHook:g_iFwdObjectCaps, HamHook:g_iFwdPreThink,
     g_iHangman, g_iHangmanConfig, g_iBarTime, Float:g_iHudCurrentY, g_iHudObject_1, g_iHudObject_2, g_iHudObject_3, g_iHudSlot,
+    g_szVoteTarget[MAX_VALUE_LENGTH], g_iVoteTargetUserid, g_iVoteNo, g_iVoteYes, Float:g_fVoteNext,
     g_iMaxPlayers, g_iSilentVictim
 
 new Float:g_fHangOffset[] = { -59.75, -1.0, -94.0 }
@@ -311,6 +322,8 @@ public plugin_init()
 
     register_clcmd("say /hangman",       "cmdMenu", ADMIN_ACCESS, "-- Opens the Hangman menu.")
     register_clcmd("say_team /hangman",  "cmdMenu", ADMIN_ACCESS, "-- Opens the Hangman menu.")
+    register_clcmd("say /hangman_vote",      "cmdVote", ADMIN_ACCESS_VOTE, "-- Opens the player voting menu.")
+    register_clcmd("say_team /hangman_vote", "cmdVote", ADMIN_ACCESS_VOTE, "-- Opens the player voting menu.")
     register_concmd("hangman_reload",  "cmdReload", ADMIN_ACCESS, "-- Reloads the configuration file")
     register_dictionary("Hangman.txt")
 
@@ -381,7 +394,8 @@ public cmdMenu(id, iLevel, iCmd)
 
     new eHangman[HANGMAN], bool:bFoundGallows
     new iArgIndex = 2
-    new bool:bProcessed[33]
+    new bool:bProcessed[33], Float:fCurrentTime
+    fCurrentTime = get_gametime()
     while ( szTarget[0] )
     {
         if ( equali(szTarget, "all") )
@@ -400,7 +414,8 @@ public cmdMenu(id, iLevel, iCmd)
                 for ( new iItem = 0; iItem < g_iHangman; iItem ++ )
                 {
                     ArrayGetArray(g_aHangman, iItem, eHangman)
-                    if ( eHangman[HANGMAN_FLAGS] & FLAG_USED )
+                    if ( eHangman[HANGMAN_FLAGS] & FLAG_USED
+                    || fCurrentTime < eHangman[HANGMAN_NEXT_ACTIVE] )
                         continue
 
                     hangmanHang(eHangman, iTarget, true)
@@ -418,7 +433,7 @@ public cmdMenu(id, iLevel, iCmd)
         }
         else
         {
-            new id = cmd_target(id, szTarget, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF)
+            new id = cmd_target(id, szTarget, CMDTARGET_ALLOW_SELF)
             if ( id && !bProcessed[id] )
             {
                 bProcessed[id] = true
@@ -432,7 +447,8 @@ public cmdMenu(id, iLevel, iCmd)
                     for ( new iItem = 0; iItem < g_iHangman; iItem ++ )
                     {
                         ArrayGetArray(g_aHangman, iItem, eHangman)
-                        if ( eHangman[HANGMAN_FLAGS] & FLAG_USED )
+                        if ( eHangman[HANGMAN_FLAGS] & FLAG_USED
+                        || fCurrentTime < eHangman[HANGMAN_NEXT_ACTIVE] )
                             continue
 
                         hangmanHang(eHangman, id, true)
@@ -467,6 +483,40 @@ public cmdReload(id, iLevel, iCmd)
     ReadFile()
     console_print(id, "The configuration file has been reloaded successfully !")
 
+    return PLUGIN_HANDLED
+}
+
+public cmdVote(id, iLevel, iCmd)
+{
+    if ( !cmd_access(id, iLevel, iCmd, 1) )
+        return PLUGIN_HANDLED
+
+    if ( !g_eSettings[SETTING_VOTE_ENABLED] )
+    {
+        client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_VOTE_DISABLED")
+        return PLUGIN_HANDLED
+    }
+
+    if ( task_exists(HANGMAN_VOTE_KEY)
+    || get_gametime() < g_fVoteNext )
+    {
+        client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_VOTE_COOLDOWN")
+        return PLUGIN_HANDLED
+    }
+
+    new iAlive
+    for ( new iPlayer = 1; iPlayer <= g_iMaxPlayers; iPlayer ++ )
+        if ( is_user_alive(iPlayer) )
+            iAlive ++
+
+    if ( !iAlive )
+    {
+        client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_VOTE_NO_TARGETS")
+        return PLUGIN_HANDLED
+    }
+
+    hangmanSound(id, SOUND_MENU_NAV)
+    hangmanMenu(id, MENU_VOTE)
     return PLUGIN_HANDLED
 }
 
@@ -584,6 +634,14 @@ ReadFile()
                             parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_WRITE_MESSAGE_ON_DEATH], charsmax(g_eSettings[SETTING_WRITE_MESSAGE_ON_DEATH]))
                         else if ( equali(szKey, "SETTING_KILL_ALL_EXCLUDE_CALLER") )
                             parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_KILL_ALL_EXCLUDE_CALLER], charsmax(g_eSettings[SETTING_KILL_ALL_EXCLUDE_CALLER]))
+                        else if ( equali(szKey, "SETTING_VOTE_ENABLED") )
+                            parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_VOTE_ENABLED], charsmax(g_eSettings[SETTING_VOTE_ENABLED]))
+                        else if ( equali(szKey, "SETTING_VOTE_COOLDOWN") )
+                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_VOTE_COOLDOWN], charsmax(g_eSettings[SETTING_VOTE_COOLDOWN]))
+                        else if ( equali(szKey, "SETTING_VOTE_DURATION") )
+                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_VOTE_DURATION], charsmax(g_eSettings[SETTING_VOTE_DURATION]))
+                        else if ( equali(szKey, "SETTING_VOTE_PERCENTAGE") )
+                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_VOTE_PERCENTAGE], charsmax(g_eSettings[SETTING_VOTE_PERCENTAGE]))
                         else if ( equali(szKey, "SETTING_HUD_X") )
                             parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_HUD_X], charsmax(g_eSettings[SETTING_HUD_X]))
                         else if ( equali(szKey, "SETTING_HUD_Y") )
@@ -682,6 +740,8 @@ stock hangmanMenu(id, iType)
         case MENU_SHOW:             { menuShow(id, iMenu);          format(szData, charsmax(szData), "%s^n%L", szData, id, "HANGMAN_ROOT_SHOW"); }
         case MENU_STATUS:           { menuStatus(id, iMenu);        format(szData, charsmax(szData), "%s^n%L", szData, id, "HANGMAN_ROOT_STATUS"); }
         case MENU_ROTATE:           { menuRotate(id, iMenu);        format(szData, charsmax(szData), "%s^n%L", szData, id, "HANGMAN_ROOT_ROTATE"); }
+        case MENU_VOTE:             { menuVote(id, iMenu);          format(szData, charsmax(szData), "%s^n%L", szData, id, "HANGMAN_ROOT_VOTE"); }
+        case MENU_VOTE_CONFIRM:     { menuVoteConfirm(id, iMenu);   format(szData, charsmax(szData), "%s^n%L", szData, id, "HANGMAN_ROOT_VOTE_CONFIRM", g_szVoteTarget); }
     }
 
     if ( menu_pages(iMenu) > 1 )
@@ -1328,6 +1388,123 @@ public menuHandlerRotate(id, menu, item)
     return PLUGIN_HANDLED
 }
 
+public menuVote(id, iMenu)
+{
+    new szName[MAX_NAME_LENGTH], szInfo[8]
+    for ( new iPlayer = 1; iPlayer <= g_iMaxPlayers; iPlayer ++ )
+    {
+        if ( !is_user_alive(iPlayer) )
+            continue
+
+        get_user_name(iPlayer, szName, charsmax(szName))
+        num_to_str(get_user_userid(iPlayer), szInfo, charsmax(szInfo))
+        menu_additem(iMenu, szName, szInfo)
+    }
+
+    return PLUGIN_HANDLED
+}
+
+public menuHandlerVote(id, menu, item)
+{
+    if ( item == MENU_EXIT )
+    {
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
+    }
+
+    new szInfo[8]
+    menu_item_getinfo(menu, item, _, szInfo, charsmax(szInfo))
+
+    new iUserid = str_to_num(szInfo)
+    new iPlayer = find_player("k", iUserid)
+    if ( !iPlayer || !is_user_alive(iPlayer) )
+    {
+        client_print_color(id, id, "%L %L", id, "HANGMAN_CHAT_TAG", id, "HANGMAN_CHAT_NOT_ALIVE")
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
+    }
+
+    g_iVoteNo = 0
+    g_iVoteYes = 0
+    g_iVoteTargetUserid = iUserid
+    get_user_name(iPlayer, g_szVoteTarget, charsmax(g_szVoteTarget))
+    set_task(g_eSettings[SETTING_VOTE_DURATION], "taskVoteEnd", HANGMAN_VOTE_KEY)
+    for ( new iTarget = 1; iTarget <= g_iMaxPlayers; iTarget ++ )
+    {
+        if ( !is_user_connected(iTarget) )
+            continue
+
+        hangmanSound(iTarget, SOUND_MENU_NAV)
+        hangmanMenu(iTarget, MENU_VOTE_CONFIRM)
+    }
+
+    menu_destroy(menu)
+    return PLUGIN_HANDLED
+}
+
+public menuVoteConfirm(id, menu)
+{
+    new szItem[128]
+    formatex(szItem, charsmax(szItem), "%L", id, "HANGMAN_VOTE_YES")
+    menu_additem(menu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "HANGMAN_VOTE_NO")
+    menu_additem(menu, szItem)
+}
+
+public menuHandlerVoteConfirm(id, menu, item)
+{
+    if ( item == MENU_EXIT )
+    {
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
+    }
+
+    if ( item == 0 )    g_iVoteYes ++
+    else                g_iVoteNo ++
+
+    menu_destroy(menu)
+    return PLUGIN_HANDLED
+}
+
+public taskVoteEnd()
+{
+    new iTotal = g_iVoteYes + g_iVoteNo
+    new Float:fPercentage
+
+    if ( iTotal )
+        fPercentage = float(g_iVoteYes) / float(iTotal)
+
+    new iTarget = find_player("k", g_iVoteTargetUserid)
+    if ( iTotal && fPercentage >= g_eSettings[SETTING_VOTE_PERCENTAGE]
+    && iTarget && is_user_alive(iTarget) )
+    {
+        new eHangman[HANGMAN], bool:bFoundGallows
+        for ( new iItem = 0; iItem < g_iHangman; iItem ++ )
+        {
+            ArrayGetArray(g_aHangman, iItem, eHangman)
+            if ( eHangman[HANGMAN_FLAGS] & FLAG_USED )
+                continue
+
+            hangmanHang(eHangman, iTarget, true)
+            ArraySetArray(g_aHangman, iItem, eHangman)
+            bFoundGallows = true
+            break
+        }
+
+        if ( bFoundGallows )
+            client_print_color(0, 0, "%L %L", LANG_PLAYER, "HANGMAN_CHAT_TAG", LANG_PLAYER, "HANGMAN_CHAT_VOTE_PASSED", g_szVoteTarget)
+        else
+            client_print_color(0, 0, "%L %L", LANG_PLAYER, "HANGMAN_CHAT_TAG", LANG_PLAYER, "HANGMAN_CHAT_NO_GALLOWS")
+    }
+    else
+    {
+        client_print_color(0, 0, "%L %L", LANG_PLAYER, "HANGMAN_CHAT_TAG", LANG_PLAYER, "HANGMAN_CHAT_VOTE_FAILED", g_szVoteTarget)
+    }
+
+    g_fVoteNext = get_gametime() + g_eSettings[SETTING_VOTE_COOLDOWN]
+}
+
 public hangmanTask()
 {
     new eHangman[HANGMAN], iItem, bool:bModified, Float:fCurrentTime
@@ -1342,7 +1519,8 @@ public hangmanTask()
         {
             if ( fCurrentTime >= g_ePlayerData[id][PDATA_NEXT_HANG] )
             {
-                if ( (iItem = hangmanGet(eHangman, g_ePlayerData[id][PDATA_HANGMAN_ID])) != -1 )
+                if ( (iItem = hangmanGet(eHangman, g_ePlayerData[id][PDATA_HANGMAN_ID])) != -1
+                && !(eHangman[HANGMAN_FLAGS] & FLAG_USED) )
                 {
                     g_ePlayerData[id][PDATA_HANGMAN_ID] = 0
                     g_ePlayerData[id][PDATA_NEXT_HANG] = 0.0
@@ -1721,6 +1899,7 @@ public fwdKilled(id, iAttacker, bGib)
         set_pev(id, pev_deadflag, DEAD_DISCARDBODY)
         g_iSilentVictim = 0
     }
+
 }
 
 stock hangmanTrace(eHangman[HANGMAN], id)
