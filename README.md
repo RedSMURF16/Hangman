@@ -13,6 +13,10 @@ Players can interact with gallows to hang themselves, with configurable hold dur
 - Save and load gallows placements per map
 - Integrates with Corpse Gore when available
 
+## 📋 Requirements
+- ReGameDLL
+- AMX Mod X 1.10+
+
 ## ⚙️ Configuration
 ```ini
 # To add a new Hangman, follow the example below:
