@@ -25,3 +25,5 @@ Players can interact with gallows to hang themselves, with configurable hold dur
 ```text
 * v1.0: Initial release.
 ```
+
+[![Watch on YouTube](https://img.shields.io/badge/YouTube-Watch%20video-FF0000?logo=youtube&logoColor=white)](https://www.youtube.com/watch?v=OSoEcBY6dns)
