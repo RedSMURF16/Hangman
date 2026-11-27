@@ -1,7 +1,7 @@
 <h1 align="center">Hangman</h1>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=OSoEcBY6dns"><img src="https://img.youtube.com/vi/OSoEcBY6dns/maxresdefault.jpg" alt="Watch on YouTube" width="600"></a>
+  <img src="images/demo.gif" alt="Hangman">
 </p>
 
 ## 📝 Description
